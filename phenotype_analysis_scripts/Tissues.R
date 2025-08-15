@@ -83,7 +83,7 @@ library(emmeans)
 library(lmerTest)  
 
 #Blood glucose anova
-f <- lmer(blood.glucose ~ Inj..2*Population  + (1|Family),  
+f <- lmer(blood.glucose ~ Inj..2*Population,  
           data = B[!is.na(B$Inj..2),])  
 anova(f,type="III")
 
