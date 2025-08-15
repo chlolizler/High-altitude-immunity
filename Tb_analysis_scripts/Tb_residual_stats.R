@@ -1,90 +1,119 @@
-# Load daily residual medians data
-setwd("/Users/chloebutler/Desktop/Tb analysis/residuals")
-daily <- read.csv("dailyresidmedians.csv", header = TRUE)
+#Load packages
+library(ggplot2)
+library(lubridate)
+library(tidyverse)
+library(dplyr)
+library(mgcv)
+library(MuMIn)
+library(ggeffects)
+library(lmerTest)
+library(lme4)
 
-# Mann-whitney u test/wilcoxon rank sum test between median residual values. The median values were collected for every individual for the first six days post-injection.
+#Load full residuals data (includes both populations but not saline controls)
+setwd("/Users/chloebutler/Desktop/Tb analysis/")
+df <-read.csv("mergedresid.csv", header= TRUE)
 
-# Overall
-kn <- daily$Median[daily$Population == "KN"]
-me <- daily$Median[daily$Population == "ME"]
+#Run a linear mixed effect model on the residuals (post-injection - pre-injection temperature values) for each day
 
-result <- wilcox.test(kn, me, paired= FALSE)
+#Overall
+aa <- lmer(residuals ~ Pop + (1 |ID), data = df)
+summary(aa)
+anova(aa)
 
-print(result)
-# ^significant
+#24 hour periods
+po24 <- df[df$TRI > 0 & df$TRI < 24, ]
+a <- lmer(residuals ~ Pop + (1 |ID), data = po24)
+summary(a)
+anova(a)
 
+po48 <- df[df$TRI > 24 & df$TRI < 48, ]
+b <- lmer(residuals ~ Pop + (1 |ID), data = po48)
+summary(b)
+anova(b)
 
-# Day 1
-firstday <- daily[daily$Window.start == 0, ]
-KN1 <- firstday$Median[firstday$Population == "KN"]
-ME1 <- firstday$Median[firstday$Population == "ME"]
+po72 <- df[df$TRI > 48 & df$TRI < 72, ]
+c <- lmer(residuals ~ Pop + (1 |ID), data = po72)
+summary(c)
+anova(c)
 
-wilcox.test(KN1, ME1, paired= FALSE)
+po96 <- df[df$TRI > 72 & df$TRI < 96, ]
+d <- lmer(residuals ~ Pop + (1 |ID), data = po96)
+summary(d)
+anova(d)
 
-# Day 2
-secondday <- daily[daily$Window.start == 24, ]
-KN2 <- secondday$Median[secondday$Population == "KN"]
-ME2 <- secondday$Median[secondday$Population == "ME"]
+po120 <- df[df$TRI > 96 & df$TRI < 120, ]
+e <- lmer(residuals ~ Pop + (1 |ID), data = po120)
+summary(e)
+anova(e)
 
-wilcox.test(KN2, ME2, paired= FALSE)
+po144 <- df[df$TRI > 120 & df$TRI < 144, ]
+f <- lmer(residuals ~ Pop + (1 |ID), data = po144)
+summary(f)
+anova(f)
 
-# Day 3
-thirdday <- daily[daily$Window.start == 48, ]
-KN3 <- thirdday$Median[thirdday$Population == "KN"]
-ME3 <- thirdday$Median[thirdday$Population == "ME"]
-
-wilcox.test(KN3, ME3, paired= FALSE)
-
-# Day 4
-fourthday <- daily[daily$Window.start == 72, ]
-KN4 <- fourthday$Median[fourthday$Population == "KN"]
-ME4 <- fourthday$Median[fourthday$Population == "ME"]
-
-wilcox.test(KN4, ME4, paired= FALSE)
-
-
-# Day 5
-fifthday <- daily[daily$Window.start == 96, ]
-KN5 <- fifthday$Median[fifthday$Population == "KN"]
-ME5 <- fifthday$Median[fifthday$Population == "ME"]
-
-wilcox.test(KN5, ME5, paired= FALSE)
-
-# Day 6
-sixthday <- daily[daily$Window.start == 120, ]
-KN6 <- sixthday$Median[sixthday$Population == "KN"]
-ME6 <- sixthday$Median[sixthday$Population == "ME"]
-
-wilcox.test(KN6, ME6, paired= FALSE)
-
+po168 <- df[df$TRI > 144 & df$TRI < 168, ]
+g <- lmer(residuals ~ Pop + (1 |ID), data = po168)
+summary(g)
+anova(g)
 
 
-# Every 2 days
+#Phase-specific linear mixed effect models (divided into day and night)
+pos12 <- df[df$TRI > 0 & df$TRI < 12, ]
+h <- lmer(residuals ~ Pop + (1 |ID), data = pos12)
+summary(h)
+anova(h)
 
-# Load 2 day residual medians data
-setwd("/Users/chloebutler/Desktop/")
-twodays <- read.csv("twodayresidualmedians.csv", header = TRUE)
+pos24 <- df[df$TRI > 12 & df$TRI < 24, ]
+i <- lmer(residuals ~ Pop + (1 |ID), data = pos24)
+summary(i)
+anova(i)
 
-# Day 1-2
-firsttwoday <- twodays[twodays$Start.Day == 1, ]
-KN7 <- firsttwoday$Median[firsttwoday$Population == "KN"]
-ME7 <- firsttwoday$Median[firsttwoday$Population == "ME"]
+pos36 <- df[df$TRI > 24 & df$TRI < 36, ]
+j <- lmer(residuals ~ Pop + (1 |ID), data = pos36)
+summary(j)
+anova(j)
 
-wilcox.test(KN7, ME7, paired= FALSE)
+pos48 <- df[df$TRI > 36 & df$TRI < 48, ]
+k <- lmer(residuals ~ Pop + (1 |ID), data = pos48)
+summary(k)
+anova(k)
 
+pos60 <- df[df$TRI > 48 & df$TRI < 60, ]
+l <- lmer(residuals ~ Pop + (1 |ID), data = pos60)
+summary(l)
+anova(l)
 
-# Day 3-4
-secondtwoday <- twodays[twodays$Start.Day == 3, ]
-KN8 <- secondtwoday$Median[secondtwoday$Population == "KN"]
-ME8 <- secondtwoday$Median[secondtwoday$Population == "ME"]
+pos72 <- df[df$TRI > 60 & df$TRI < 72, ]
+m <- lmer(residuals ~ Pop + (1 |ID), data = pos72)
+summary(m)
+anova(m)
 
-wilcox.test(KN8, ME8, paired= FALSE)
+pos84 <- df[df$TRI > 72 & df$TRI < 84, ]
+n <- lmer(residuals ~ Pop + (1 |ID), data = pos84)
+summary(n)
+anova(n)
 
-#Day 5-6
-thirdtwoday <- twodays[twodays$Start.Day == 5, ]
-KN9 <- thirdtwoday$Median[thirdtwoday$Population == "KN"]
-ME9 <- thirdtwoday$Median[thirdtwoday$Population == "ME"]
+pos96 <- df[df$TRI > 84 & df$TRI < 96, ]
+o <- lmer(residuals ~ Pop + (1 |ID), data = pos96)
+summary(o)
+anova(o)
 
-wilcox.test(KN9, ME9, paired= FALSE)
+pos108 <- df[df$TRI > 96 & df$TRI < 108, ]
+p <- lmer(residuals ~ Pop + (1 |ID), data = pos108)
+summary(p)
+anova(p)
 
+pos120 <- df[df$TRI > 108 & df$TRI < 120, ]
+q <- lmer(residuals ~ Pop + (1 |ID), data = pos120)
+summary(q)
+anova(q)
 
+pos132 <- df[df$TRI > 120 & df$TRI < 132, ]
+r <- lmer(residuals ~ Pop + (1 |ID), data = pos132)
+summary(r)
+anova(r)
+
+pos144 <- df[df$TRI > 132 & df$TRI < 144, ]
+s <- lmer(residuals ~ Pop + (1 |ID), data = pos144)
+summary(s)
+anova(s)
