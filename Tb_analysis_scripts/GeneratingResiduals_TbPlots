@@ -1,0 +1,202 @@
+#Load packages
+library(lubridate)
+library(tidyverse)
+library(mgcv)
+library(nlme)
+library(MuMIn)
+library(ggplot2)
+library(lmerTest)
+library(car)
+
+#The following process was done for each individual in the trials. The saline controls were grouped into a separate analysis
+#Data for each individual was separated into pre- and post-injection
+
+#Load pre-injection data
+setwd("/Users/chloebutler/Desktop/Tb analysis/NEW_Pre_inj/")
+prA <- read.csv("PRE_A.csv", header = TRUE)
+prA$Trial <- as.factor(prA$Trial)
+
+#Load post-injection data
+setwd("/Users/chloebutler/Desktop/Tb analysis/NEW_Post-inj/")
+poA <- read.csv("POST_A.csv", header = TRUE)
+poA$Trial <- as.factor(poA$Trial)
+
+#Create time variables
+# Time of day in decimal hours (used for modeling)
+prA$Time2 <- hour(prA$DT) + minute(prA$DT)/60 + second(prA$DT)/3600
+poA$Time2 <- hour(poA$DT) + minute(poA$DT)/60 + second(poA$DT)/3600
+
+prA <- prA %>% arrange(DT)  
+prA$elapsed <- as.numeric(difftime(prA$DT, min(prA$DT), units = "hours"))
+
+# Downsample to one row every ~10 minutes
+prA_ds <- prA[seq(1, nrow(prA), by = 7), ]
+prA_ds$row <- 1:nrow(prA_ds)  
+
+#Fit GAMM with AR(1) structure
+
+prAgamm <- gamm(Temp ~ s(Time2),
+                data = prA_ds,
+                correlation = corAR1(form = ~ row),
+                method = "REML")
+
+#Diagnostic check: autocorrelation of residuals
+acf(resid(prAgamm$lme, type = "normalized"))
+
+# Save residuals
+prA_ds$residuals <- resid(prAgamm$lme, type = "normalized")
+
+# Prepare new data for prediction
+postInjPredictdfA <- data.frame(Time2 = poA$Time2)
+
+# Predict using fitted GAMM
+predicteddataA <- predict(prAgamm, newdata = postInjPredictdfA)
+
+#Combine predictions with actual data and plot
+if (length(predicteddataA) == nrow(poA)) {
+  
+  #Combine results
+  resultsA <- data.frame(
+    ID = poA$Tag.ID,
+    TRI = poA$TRI,
+    RealTime = poA$Time2,
+    Trial = poA$Trial,
+    actual = poA$Temp,
+    predicted = predicteddataA
+  )
+  
+  #Plot actual vs predicted temperatures
+  ggplot(resultsA, aes(x = TRI)) +
+    geom_line(aes(y = actual, color = "Actual"), size = 1) +
+    geom_line(aes(y = predicted, color = "Predicted"), size = 1) +
+    labs(
+      title = "Comparison of Actual vs. Predicted Temperature",
+      x = "Time Relative to Injection (hours)",
+      y = "Temperature (°C)",
+      color = "Legend"
+    ) +
+    scale_color_manual(values = c("Actual" = "blue", "Predicted" = "black")) +
+    theme_minimal() +
+    theme(legend.position = "top")
+  
+} else {
+  cat("⚠️ Mismatch between predicted and actual data — check dimensions.\n")
+}
+
+
+
+
+#Once done for all individuals, we separated into three groups: lowland population (KN), highland population (ME), and saline control mice
+#We then filtered each group's data down to first three days then looked for differences with these three days
+
+#Set bin width
+bin_width <- 0.5  # adjust if needed
+
+#Filter for Day 1 data
+KNfirstdayNEW <- KNmergeNEW %>% 
+  filter(TRI >= 0 & TRI < 24)
+
+#Bin TRI for grouping
+KNfirstday_binned <- KNfirstdayNEW %>%
+  mutate(TRI_bin = cut(TRI, breaks = seq(0, 24, by = bin_width), include.lowest = TRUE, right = FALSE))
+
+#Compute per-individual binned actual values
+actual_lines_day1 <- KNfirstday_binned %>%
+  group_by(ID, TRI_bin) %>%
+  summarise(
+    TRI = mean(TRI, na.rm = TRUE),
+    actual = mean(actual, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Compute population-level average actual and predicted lines
+KN_long_day1 <- KNfirstday_binned %>%
+  group_by(TRI_bin) %>%
+  summarise(
+    TRI_mid = mean(TRI, na.rm = TRUE),
+    predicted_mean = mean(predicted, na.rm = TRUE),
+    actual_mean = mean(actual, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(cols = c(predicted_mean, actual_mean), names_to = "Type", values_to = "Temperature") %>%
+  mutate(Type = recode(Type, predicted_mean = "Predicted", actual_mean = "Actual"))
+
+
+
+ggplot() +
+  geom_line(data = actual_lines_day1,
+            aes(x = TRI, y = actual, group = ID, color = "Individual Actual"),
+            method = "gam", formula = y ~ s(x, bs = "cs"),
+            se = FALSE, size = 0.8, alpha = 0.5) +
+  
+  geom_line(data = subset(KN_long_day1, Type == "Actual"),
+            aes(x = TRI_mid, y = Temperature, color = "Average Actual"),
+            method = "gam", formula = y ~ s(x, bs = "cs"),
+            se = FALSE, size = 1.2) +
+  
+  geom_line(data = KN_predicted_reference %>% filter(TRI_mid >= 0 & TRI_mid < 24),
+            aes(x = TRI_mid, y = predicted, color = "Average Predicted"),
+            method = "gam", formula = y ~ s(x, bs = "cs"),
+            se = FALSE, size = 1.2) +
+  
+  scale_color_manual(values = c(
+    "Individual Actual" = "#3CCFCC",
+    "Average Actual" = "dodgerblue",
+    "Average Predicted" = "black"
+  )) +
+  labs(title = "Lowland Day 1",
+       x = "TRI (hours)",
+       y = "Temperature (°C)",
+       color = "Legend") +
+  theme_minimal() +
+  scale_x_continuous(limits = c(0, 24), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(34, 39.5), expand = c(0, 0))
+
+
+
+
+#Repeat process for day 2 and day 3 data, as well as each day for the other 2 groups
+
+
+#Three day residuals plot between populations
+#Load in the full residuals csv (excludes the saline control, but has both populations) 
+setwd("/Users/chloebutler/Desktop/Tb analysis/residuals")
+fullNEW <- read.csv("fullresid.csv", header = TRUE)
+
+
+#Filter your data for TRI between 0 and 72
+residthreedays <- fullNEW %>%
+  filter(TRI >= 0 & TRI <= 72)
+
+sample_sizes <- c("ME" = 8, "KN" = 12)
+
+#binning by hour and averaging by population
+resid_summary <- residthreedays %>%
+  mutate(TRI_bin = floor(TRI)) %>%  
+  group_by(Pop, TRI_bin) %>%
+  summarise(
+    mean_resid = mean(difference, na.rm = TRUE),
+    sd_resid = sd(difference, na.rm = TRUE),
+    n = n(),
+    se_resid = sd_resid / sqrt(sample_sizes[Pop]),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    lower_CI = mean_resid - 1.96 * se_resid,
+    upper_CI = mean_resid + 1.96 * se_resid
+  )
+
+
+ggplot(resid_summary, aes(x = TRI_bin, y = mean_resid, color = Pop, fill = Pop)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = lower_CI, ymax = upper_CI), alpha = 0.4, color = NA) +
+  labs(
+    title = "Mean Residuals by Population (w 1 hr bins)",
+    x = "Time Relative to Injection (hours)",
+    y = "Residual",
+    color = "Population",
+    fill = "Population"
+  ) +
+  scale_color_manual(values = c("KN" = "#3CCFCC", "ME" = "#D9DB44")) +
+  scale_fill_manual(values = c("KN" = "#3CCFCC", "ME" = "#D9DB44")) +
+  theme_minimal(base_size = 14)
