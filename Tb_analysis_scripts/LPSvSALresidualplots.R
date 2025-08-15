@@ -1,4 +1,6 @@
-#Packages
+#This code makes residual histogram plots: one for the overall effect of LPS on the populations and one for the overall effect of saline on the controls. These residuals are calculated by subtracting pre-injection temperatures from post-injection temperature for each individual mouse
+
+#Load packages
 library(ggplot2)
 library(lubridate)
 library(tidyverse)
