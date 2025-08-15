@@ -1,0 +1,106 @@
+#Load transcriptomic expression dataframe that includes p values, logFC, and mus_ortholog names that match with deer mice
+setwd()
+d <- read.csv("MergedDE_ortho_pManual.csv", header = TRUE)
+
+d$PopManualPvalAdj <- 1
+d$PopManualPvalAdj[which(d$X1==1)] <- p.adjust(d$P.Value.Pop[which(d$X1==1)], method = "BH", n = 334)
+
+d$InjManualPvalAdj <- 1
+d$InjManualPvalAdj[which(d$X1==1)] <- p.adjust(d$P.Value.Inj[which(d$X1==1)], method = "BH", n = 334)
+
+d$IxnManualPvalAdj <- 1
+d$IxnManualPvalAdj[which(d$X1==1)] <- p.adjust(d$P.Value.PopByInj[which(d$X1==1)], method = "BH", n = 334)
+
+
+###GO
+library(gprofiler2)
+
+dRef <- d$ortholog_ensg
+dPop <- d$ortholog_ensg[which(d$adj.P.Val.Pop<0.05)]
+dInj <- d$ortholog_ensg[which(d$adj.P.Val.Inj<0.05)]
+dAdd <- d$ortholog_ensg[which(d$AddSig==1)]
+
+Out <- gost(dInj, organism = "mmusculus", 
+                ordered_query = F, significant = T, exclude_iea = F,
+                correction_method = "bonferroni",
+                custom_bg = dRef)
+
+sink(file = "InjGO_Sig_pval.csv")
+Out
+sink()
+
+
+###GSEA
+
+###GSEA analysis
+library(clusterProfiler)
+library(enrichplot)
+library(ggplot2)
+library(org.Mm.eg.db)
+
+setwd()
+d <- read.csv("MergedDE_ortho_pManual.csv", header = TRUE)
+non_duplicated_idx <- which(duplicated(d$ortholog_ensg) == FALSE)
+mus_idx <- d[-which(d$ortholog_ensg=="N/A"),] ## use this to determine how many duplicates were meaningful. 127!
+dcl <- d[non_duplicated_idx,]
+
+#We want the log2 fold change * -log(pval[raw]) 
+LPS_list <- dcl$InjGSEA
+Pop_list <- dcl$PopGSEA
+Ixn_list <- dcl$IxnGSEA
+
+#Name the vector
+names(LPS_list) <- dcl$ortholog_ensg
+names(Pop_list) <- dcl$ortholog_ensg
+names(Ixn_list) <- dcl$ortholog_ensg
+
+
+# sort the list in decreasing order (required for clusterProfiler)
+Pop_list = sort(Pop_list, decreasing = TRUE)
+LPS_list = sort(LPS_list, decreasing = TRUE)
+Ixn_list = sort(Ixn_list, decreasing = TRUE)
+
+gse_Pop <- gseGO(geneList=Pop_list, 
+                  ont ="ALL", 
+                  keyType = "ENSEMBL", 
+                  minGSSize = 3, 
+                  maxGSSize = 500, 
+                  pvalueCutoff = 0.05, 
+                  verbose = TRUE, 
+                  OrgDb = "org.Mm.eg.db", 
+                  pAdjustMethod = "BH")
+
+gse_LPS <- gseGO(geneList=LPS_list, 
+                 ont ="ALL", 
+                 keyType = "ENSEMBL", 
+                 minGSSize = 3, 
+                 maxGSSize = 500, 
+                 pvalueCutoff = 0.05, 
+                 verbose = TRUE, 
+                 OrgDb = "org.Mm.eg.db", 
+                 pAdjustMethod = "BH")
+
+gse_Ixn <- gseGO(geneList=Ixn_list, 
+                 ont ="ALL", 
+                 keyType = "ENSEMBL", 
+                 minGSSize = 3, 
+                 maxGSSize = 500, 
+                 pvalueCutoff = 0.05, 
+                 verbose = TRUE, 
+                 OrgDb = "org.Mm.eg.db", 
+                 pAdjustMethod = "BH")
+
+
+require(DOSE)
+AA <- dotplot(gse_Pop, showCategory=10, split=".sign") + facet_grid(.~.sign)
+BB <- dotplot(gse_LPS, showCategory=10, split=".sign") + facet_grid(.~.sign)
+CC <- dotplot(gse_Ixn, showCategory=10, split=".sign") + facet_grid(.~.sign)
+
+PopResults <- as.data.frame(gse_Pop)
+write.csv(PopResults, "Pop_GSEA_results.csv")
+
+LPSResults <- as.data.frame(gse_LPS)
+write.csv(LPSResults, "LPS_GSEA_results.csv")
+
+IxnResults <- as.data.frame(gse_Ixn)
+write.csv(IxnResults, "Ixn_GSEA_results.csv")
