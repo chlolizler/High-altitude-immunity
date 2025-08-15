@@ -1,4 +1,6 @@
-#Packages
+#This code makes residual histogram plots that overlap the populations. These residuals are calculated by subtracting pre-injection temperatures from post-injection temperature for each individual mouse
+
+#Load Packages
 library(ggplot2)
 library(lubridate)
 library(tidyverse)
